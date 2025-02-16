@@ -1,19 +1,14 @@
+use ::simulacrum::Simulacrum;
 use std::io::stdin;
 use std::sync::OnceLock;
-use ::simulacrum::Simulacrum;
-use iota_json_rpc_api::BridgeReadApiClient;
 
-use iota_types::{
-    storage::ReadStore,
-};
-use axum::{
-    response::IntoResponse,
-};
+use crate::consts::{get_control_url, get_faucet_url, get_indexer_client_url, get_rpc_client_url};
 
-mod simulacrum;
+mod consts;
 mod fake_faucet;
-mod simulacum_reader_wrapper;
+mod simulacrum;
 mod simulacrum_control_api;
+mod simulacum_reader_wrapper;
 
 static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<simulacrum::SimulacrumTestSetup> =
     OnceLock::new();
@@ -63,12 +58,16 @@ fn add_checkpoints(sim: &mut Simulacrum, checkpoints_count: i32) {
     }
 }
 
-
-
 fn main() {
     env_logger::init();
-    let sim = get_or_init_shared_extended_api_simulacrum_env();
+    _ = get_or_init_shared_extended_api_simulacrum_env();
+
+    println!("Indexer: {}", get_indexer_client_url());
+    println!("RPC URL: {}", get_rpc_client_url());
+    println!("Faucet URL: {}", get_faucet_url());
+    println!("RPC URL: {}", get_control_url());
+
     println!("Simulacrum Server running!");
-    let mut s=String::new();
+    let mut s = String::new();
     stdin().read_line(&mut s).expect("");
 }

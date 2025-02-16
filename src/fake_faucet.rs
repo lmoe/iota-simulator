@@ -1,12 +1,13 @@
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use crate::consts::get_faucet_binding_ip;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::{Json, Router};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use axum::{Json, Router};
 use iota_faucet::{FaucetError, FaucetReceipt, FaucetRequest, FaucetResponse};
 use simulacrum::Simulacrum;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 async fn health() -> &'static str {
     "OK"
@@ -56,12 +57,15 @@ async fn request_gas(
     }
 }
 
-pub async fn start_fake_faucet(sim: Arc<RwLock<Simulacrum>>) {
+pub async fn start_fake_faucet(sim: Arc<RwLock<Simulacrum>>) -> std::io::Result<()> {
     let app = Router::new()
         .route("/", get(health))
         .route("/gas", post(request_gas))
         .with_state(sim);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:30002").await.unwrap();
-    axum::serve(listener, app).await.expect("TODO: panic message");
+    let listener = tokio::net::TcpListener::bind(get_faucet_binding_ip())
+        .await
+        .unwrap();
+
+    axum::serve(listener, app).await
 }

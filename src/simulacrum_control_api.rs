@@ -1,16 +1,15 @@
-use std::ops::Deref;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use crate::consts::get_control_binding_ip;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::{Json, Router};
-use axum::response::{IntoResponse, Response};
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use axum::{Json, Router};
 use iota_types::crypto::AuthorityStrongQuorumSignInfo;
-use iota_types::effects::TransactionEffects;
-use iota_types::messages_checkpoint::{CheckpointSummary, VerifiedCheckpoint};
+use iota_types::messages_checkpoint::CheckpointSummary;
 use serde::{Deserialize, Serialize};
 use simulacrum::Simulacrum;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 async fn health() -> &'static str {
     "OK"
@@ -19,14 +18,14 @@ async fn health() -> &'static str {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Checkpoint {
     pub summary: CheckpointSummary,
-    pub authority: AuthorityStrongQuorumSignInfo
+    pub authority: AuthorityStrongQuorumSignInfo,
 }
 
 async fn create_checkpoint(
     State(state): State<Arc<RwLock<Simulacrum>>>, // Use the trait object
-) -> Result<Json<Checkpoint>, StatusCode>{
+) -> Result<Json<Checkpoint>, StatusCode> {
     let mut s = state.write().unwrap();
-    let mut c = s.create_checkpoint().clone();
+    let c = s.create_checkpoint().clone();
 
     Ok(Json(Checkpoint {
         authority: c.auth_sig().clone(),
@@ -35,8 +34,8 @@ async fn create_checkpoint(
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct  AdvanceClockRequest {
-    pub duration: u32
+pub struct AdvanceClockRequest {
+    pub duration: u32,
 }
 
 async fn advance_clock(
@@ -48,14 +47,12 @@ async fn advance_clock(
     ()
 }
 
-async fn advance_epoch(
-    State(state): State<Arc<RwLock<Simulacrum>>>,
-) -> impl IntoResponse {
+async fn advance_epoch(State(state): State<Arc<RwLock<Simulacrum>>>) -> impl IntoResponse {
     let mut s = state.write().unwrap();
     s.advance_epoch()
 }
 
-pub async fn start_control_api(sim: Arc<RwLock<Simulacrum>>) {
+pub async fn start_control_api(sim: Arc<RwLock<Simulacrum>>) -> std::io::Result<()> {
     let app = Router::new()
         .route("/", get(health))
         .route("/create_checkpoint", post(create_checkpoint))
@@ -63,6 +60,9 @@ pub async fn start_control_api(sim: Arc<RwLock<Simulacrum>>) {
         .route("/advance_epoch", post(advance_epoch))
         .with_state(sim);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:30002").await.unwrap();
-    axum::serve(listener, app).await;
+    let listener = tokio::net::TcpListener::bind(get_control_binding_ip())
+        .await
+        .unwrap();
+
+    axum::serve(listener, app).await
 }
