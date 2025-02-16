@@ -1,8 +1,9 @@
 use ::simulacrum::Simulacrum;
-use std::io::stdin;
-use std::sync::OnceLock;
-
+use std::ops::Deref;
+use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::consts::{get_control_url, get_faucet_url, get_indexer_client_url, get_rpc_client_url};
+use signal_hook::flag;
 
 mod consts;
 mod fake_faucet;
@@ -60,7 +61,7 @@ fn add_checkpoints(sim: &mut Simulacrum, checkpoints_count: i32) {
 
 fn main() {
     env_logger::init();
-    _ = get_or_init_shared_extended_api_simulacrum_env();
+    let mut sim = get_or_init_shared_extended_api_simulacrum_env();
 
     println!("Indexer: {}", get_indexer_client_url());
     println!("RPC URL: {}", get_rpc_client_url());
@@ -68,6 +69,16 @@ fn main() {
     println!("RPC URL: {}", get_control_url());
 
     println!("Simulacrum Server running!");
-    let mut s = String::new();
-    stdin().read_line(&mut s).expect("");
+
+    // Waiting for Ctrl-C (or Docker SIGTERM) to exit
+    let term = Arc::new(AtomicBool::new(false));
+
+    flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term)).expect("Failed to register SIGTERM handler");
+    flag::register(signal_hook::consts::SIGINT, Arc::clone(&term)).expect("Failed to register SIGINT handler");
+
+    while !Arc::clone(&term).load(Ordering::Relaxed) {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    println!("Exiting...");
 }

@@ -5,7 +5,7 @@ use iota_indexer::{
     test_utils::{start_test_indexer, ReaderWriterConfig},
     IndexerConfig,
 };
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 use std::{
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -23,8 +23,8 @@ use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-const POSTGRES_URL: &str = "postgres://postgres:postgrespw@localhost:5432";
-const DEFAULT_DB: &str = "iota_indexer";
+const POSTGRES_URL: &str = "postgres://postgres:postgres@localhost:5432";
+const DEFAULT_DB: &str = "postgres";
 
 pub struct SimulacrumTestSetup {
     pub runtime: Runtime,
@@ -45,7 +45,7 @@ impl SimulacrumTestSetup {
             let sim = Arc::new(RwLock::new(env_initializer(data_ingestion_path.clone())));
 
             let db_name = format!("simulacrum_env_db_{}", unique_env_name);
-            let (_, _, store, _, client) =
+            let (api_lock, _, store, _, client) =
                 runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
                     sim.clone(),
                     data_ingestion_path,
