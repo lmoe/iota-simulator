@@ -10,7 +10,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
-
+use std::net::SocketAddr;
 use crate::consts::{
     get_rpc_binding_ip, get_rpc_client_url, DEFAULT_INDEXER_PORT,
 };
@@ -18,6 +18,11 @@ use crate::fake_faucet::start_fake_faucet;
 use crate::simulacrum_control_api::start_control_api;
 use crate::simulacum_reader_wrapper::SimulacrumReaderWrapper;
 use iota_metrics::init_metrics;
+use iota_types::digests::TransactionDigest;
+use iota_types::message_envelope::Message;
+use iota_types::quorum_driver_types::{EffectsFinalityInfo, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects, QuorumDriverError};
+use iota_types::transaction_executor::TransactionExecutor;
+use jsonrpsee::core::async_trait;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
@@ -88,6 +93,36 @@ fn start_indexer_reader(data_ingestion_path: PathBuf, database_name: Option<&str
     DEFAULT_INDEXER_PORT
 }
 
+pub struct SimulacrumExecuter {
+    pub inner: Arc<RwLock<Simulacrum>>,
+}
+
+#[async_trait]
+impl TransactionExecutor for SimulacrumExecuter {
+    async fn execute_transaction(&self, request: ExecuteTransactionRequestV1, client_addr: Option<SocketAddr>) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let mut s = self.inner.write().unwrap();
+        let (result, err) = s.execute_transaction(request.transaction).unwrap();
+        let digest = TransactionDigest::from(result.digest().into_inner());
+
+        let tx = s.store().get_transaction(&digest).unwrap();
+        let ev = s.store().get_transaction_events_by_tx_digest(&digest);
+
+        let response = ExecuteTransactionResponseV1 {
+            effects: FinalizedEffects {
+                effects: Default::default(),
+                finality_info: EffectsFinalityInfo::Checkpointed(0, 0),
+            },
+            events: ev,
+            input_objects: None,
+            output_objects: None,
+            auxiliary_data: None,
+        };
+        
+        Ok(response)
+    }
+}
+
+
 pub async fn start_simulacrum_rest_api_with_write_indexer(
     sim: Arc<RwLock<Simulacrum>>,
     data_ingestion_path: PathBuf,
@@ -99,12 +134,20 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     JoinHandle<Result<(), IndexerError>>,
 ) {
     let sim_for_server = Arc::clone(&sim);
+    let sim_for_executer = Arc::clone(&sim);
+
     let server_handle = tokio::spawn(async move {
         let sim_wrapper = Arc::new(SimulacrumReaderWrapper {
             inner: sim_for_server,
         });
-        iota_rest_api::RestService::new_without_version(sim_wrapper)
-            .start_service(get_rpc_binding_ip().parse().expect("Invalid server URL"))
+
+        let sim_executer = Arc::new(SimulacrumExecuter {
+            inner: sim_for_executer,
+        });
+
+        let mut serv = iota_rest_api::RestService::new_without_version(sim_wrapper);
+        serv.with_executor(sim_executer);
+        serv.start_service(get_rpc_binding_ip().parse().expect("Invalid server URL"))
             .await;
     });
 

@@ -1,7 +1,6 @@
 use crate::consts::get_control_binding_ip;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use iota_types::crypto::AuthorityStrongQuorumSignInfo;
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use simulacrum::Simulacrum;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use axum::response::IntoResponse;
 
 async fn health() -> &'static str {
     "OK"
@@ -52,9 +52,19 @@ async fn advance_epoch(State(state): State<Arc<RwLock<Simulacrum>>>) -> impl Int
     s.advance_epoch()
 }
 
+async fn get_checkpoint(State(state): State<Arc<RwLock<Simulacrum>>>) -> Result<Json<Checkpoint>, StatusCode> {
+    let mut s = state.write().unwrap();
+    let checkpoint = s.store().get_highest_checkpoint().clone().unwrap();
+    Ok(Json(Checkpoint {
+        authority: checkpoint.auth_sig().clone(),
+        summary: checkpoint.data().clone(),
+    }))
+}
+
 pub async fn start_control_api(sim: Arc<RwLock<Simulacrum>>) -> std::io::Result<()> {
     let app = Router::new()
         .route("/", get(health))
+        .route("/checkpoint", get(get_checkpoint))
         .route("/create_checkpoint", post(create_checkpoint))
         .route("/advance_clock", post(advance_clock))
         .route("/advance_epoch", post(advance_epoch))

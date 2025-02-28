@@ -20,7 +20,7 @@ async fn request_gas(
     let result = match payload {
         FaucetRequest::FixedAmountRequest(requests) => {
             let mut s = state.write().unwrap();
-            let res = s.request_gas(requests.recipient, 20);
+            let res = s.request_gas(requests.recipient, 2000000000);
             s.create_checkpoint();
             s.advance_clock(Duration::new(5, 0));
             res
