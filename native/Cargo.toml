@@ -1,0 +1,21 @@
+[package]
+name = "lsimulacrum"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+name = "lsimulacrum"
+
+
+[dependencies]
+simulacrum = { git = "https://github.com/iotaledger/iota", tag = "v0.10.3-rc", package = "simulacrum" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+iota-types = { git = "https://github.com/iotaledger/iota", tag = "v0.10.3-rc", package = "iota-types" }
+tempfile = "3.19.1"
+base64 = "0.22.1"
+erased-serde = "0.4.6"
+env_logger = "0.11.7"
+log = "0.4.27"
+
