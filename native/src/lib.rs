@@ -1,4 +1,5 @@
-mod handlers;
+pub mod sim_handlers;
+pub mod registry;
 
 use ::simulacrum::Simulacrum;
 use std::ops::Deref;
@@ -7,7 +8,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 use iota_types::storage::ReadStore;
 use serde::{Deserialize, Serialize};
 use tempfile::tempdir;
-use crate::handlers::get_registry;
+use crate::registry::get_registry;
 use log::{LevelFilter, error, info};
 
 static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<Simulacrum> =

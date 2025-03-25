@@ -1,11 +1,12 @@
-use serde::{Serialize, Deserialize};
 use serde_json;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, Once};
 use std::error::Error;
 use std::fmt;
-use iota_types::storage::ReadStore;
 use simulacrum::Simulacrum;
+
+use crate::sim_handlers;
+use crate::sim_handlers::register_handlers;
 
 static mut REGISTRY: Option<HandlerRegistry> = None;
 static INIT: Once = Once::new();
@@ -21,9 +22,7 @@ pub fn get_registry() -> &'static HandlerRegistry {
     }
 }
 
-fn register_handlers(registry: &mut HandlerRegistry) {
-    registry.register("getLatestCheckpoint", get_latest_checkpoint_handler);
-}
+
 
 #[derive(Debug)]
 pub struct HandlerError {
@@ -67,19 +66,3 @@ impl HandlerRegistry {
         self.handlers.get(name)
     }
 }
-
-fn get_latest_checkpoint_handler(
-    simulator: &Arc<RwLock<Simulacrum>>,
-    _args: &serde_json::Value
-) -> Result<Box<dyn erased_serde::Serialize>, HandlerError> {
-    let sim = simulator.read().map_err(|_| HandlerError::new("Failed to acquire read lock"))?;
-
-    match sim.get_latest_checkpoint() {
-        Ok(checkpoint) => {
-            let serializable = checkpoint.serializable();
-            Ok(Box::new(serializable))
-        },
-        Err(e) => Err(HandlerError::new(&format!("Failed to get latest checkpoint: {}", e))),
-    }
-}
-
